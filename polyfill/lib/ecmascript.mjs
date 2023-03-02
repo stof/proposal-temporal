@@ -2165,9 +2165,9 @@ export function GetOffsetStringFor(timeZone, instant) {
   return FormatTimeZoneOffsetString(offsetNs);
 }
 
-export function GetPlainDateTimeFor(timeZone, instant, calendar) {
+export function GetPlainDateTimeFor(timeZone, instant, calendar, precalculatedOffsetNs = undefined) {
   const ns = GetSlot(instant, EPOCHNANOSECONDS);
-  const offsetNs = GetOffsetNanosecondsFor(timeZone, instant);
+  const offsetNs = precalculatedOffsetNs ?? GetOffsetNanosecondsFor(timeZone, instant);
   let { year, month, day, hour, minute, second, millisecond, microsecond, nanosecond } = GetISOPartsFromEpoch(ns);
   ({ year, month, day, hour, minute, second, millisecond, microsecond, nanosecond } = BalanceISODateTime(
     year,
@@ -2368,7 +2368,8 @@ export function FormatSecondsStringPart(second, millisecond, microsecond, nanose
 export function TemporalInstantToString(instant, timeZone, precision) {
   let outputTimeZone = timeZone;
   if (outputTimeZone === undefined) outputTimeZone = 'UTC';
-  const dateTime = GetPlainDateTimeFor(outputTimeZone, instant, 'iso8601');
+  const offsetNs = GetOffsetNanosecondsFor(outputTimeZone, instant);
+  const dateTime = GetPlainDateTimeFor(outputTimeZone, instant, 'iso8601', offsetNs);
   const year = ISOYearString(GetSlot(dateTime, ISO_YEAR));
   const month = ISODateTimePartString(GetSlot(dateTime, ISO_MONTH));
   const day = ISODateTimePartString(GetSlot(dateTime, ISO_DAY));
@@ -2383,7 +2384,6 @@ export function TemporalInstantToString(instant, timeZone, precision) {
   );
   let timeZoneString = 'Z';
   if (timeZone !== undefined) {
-    const offsetNs = GetOffsetNanosecondsFor(outputTimeZone, instant);
     timeZoneString = FormatISOTimeZoneOffsetString(offsetNs);
   }
   return `${year}-${month}-${day}T${hour}:${minute}${seconds}${timeZoneString}`;
@@ -2547,7 +2547,8 @@ export function TemporalZonedDateTimeToString(
   }
 
   const tz = GetSlot(zdt, TIME_ZONE);
-  const dateTime = GetPlainDateTimeFor(tz, instant, 'iso8601');
+  const offsetNs = GetOffsetNanosecondsFor(tz, instant);
+  const dateTime = GetPlainDateTimeFor(tz, instant, 'iso8601', offsetNs);
 
   const year = ISOYearString(GetSlot(dateTime, ISO_YEAR));
   const month = ISODateTimePartString(GetSlot(dateTime, ISO_MONTH));
@@ -2563,7 +2564,6 @@ export function TemporalZonedDateTimeToString(
   );
   let result = `${year}-${month}-${day}T${hour}:${minute}${seconds}`;
   if (showOffset !== 'never') {
-    const offsetNs = GetOffsetNanosecondsFor(tz, instant);
     result += FormatISOTimeZoneOffsetString(offsetNs);
   }
   if (showTimeZone !== 'never') {
