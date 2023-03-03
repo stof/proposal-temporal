@@ -1111,6 +1111,7 @@ export function ToTemporalTimeRecord(bag, completeness = 'complete') {
 }
 
 export function ToTemporalDate(item, options) {
+  if (options !== undefined) options = SnapshotOwnProperties(GetOptionsObject(options), null);
   if (Type(item) === 'Object') {
     if (IsTemporalDate(item)) return item;
     if (IsTemporalZonedDateTime(item)) {
@@ -1240,6 +1241,7 @@ export function ToTemporalInstant(item) {
 }
 
 export function ToTemporalMonthDay(item, options) {
+  if (options !== undefined) options = SnapshotOwnProperties(GetOptionsObject(options), null);
   if (Type(item) === 'Object') {
     if (IsTemporalMonthDay(item)) return item;
     let calendar, calendarAbsent;
@@ -1314,6 +1316,7 @@ export function ToTemporalTime(item, overflow = 'constrain') {
 }
 
 export function ToTemporalYearMonth(item, options) {
+  if (options !== undefined) options = SnapshotOwnProperties(GetOptionsObject(options), null);
   if (Type(item) === 'Object') {
     if (IsTemporalYearMonth(item)) return item;
     const calendar = GetTemporalCalendarSlotValueWithISODefault(item);
