@@ -1631,9 +1631,8 @@ export function CreateTemporalZonedDateTime(epochNanoseconds, timeZone, calendar
 
 export function CalendarFields(calendar, fieldNames) {
   if (typeof calendar === 'string') {
-    const TemporalCalendar = GetIntrinsic('%Temporal.Calendar%');
-    calendar = new TemporalCalendar(calendar);
-    return Call(GetIntrinsic('%Temporal.Calendar.prototype.fields%'), calendar, [fieldNames]);
+    if (calendar === 'iso8601') return fieldNames;
+    return GetIntrinsic('%CalendarDateFields%')(calendar, fieldNames);
   }
   const fields = GetMethod(calendar, 'fields');
   fieldNames = Call(fields, calendar, [fieldNames]);
