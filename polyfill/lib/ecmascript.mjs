@@ -2401,7 +2401,7 @@ export function TemporalDurationToString(
 ) {
   const sign = DurationSign(years, months, weeks, days, hours, minutes, seconds, ms, µs, ns);
 
-  let total = TotalDurationNanoseconds(0, 0, 0, seconds, ms, µs, ns, 0);
+  let total = TotalDurationNanoseconds(0, 0, 0, seconds, ms, µs, ns);
   ({ quotient: total, remainder: ns } = total.divmod(1000));
   ({ quotient: total, remainder: µs } = total.divmod(1000));
   ({ quotient: seconds, remainder: ms } = total.divmod(1000));
@@ -3093,17 +3093,7 @@ export function BalanceTime(hour, minute, second, millisecond, microsecond, nano
   };
 }
 
-export function TotalDurationNanoseconds(
-  days,
-  hours,
-  minutes,
-  seconds,
-  milliseconds,
-  microseconds,
-  nanoseconds,
-  offsetShift
-) {
-  if (days !== 0) nanoseconds = bigInt(nanoseconds).subtract(offsetShift);
+export function TotalDurationNanoseconds(days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds) {
   hours = bigInt(hours).add(bigInt(days).multiply(24));
   minutes = bigInt(minutes).add(hours.multiply(60));
   seconds = bigInt(seconds).add(minutes.multiply(60));
@@ -3254,7 +3244,7 @@ export function BalancePossiblyInfiniteTimeDuration(
   nanoseconds,
   largestUnit
 ) {
-  nanoseconds = TotalDurationNanoseconds(days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds, 0);
+  nanoseconds = TotalDurationNanoseconds(days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds);
 
   const sign = nanoseconds.lesser(0) ? -1 : 1;
   nanoseconds = nanoseconds.abs();
@@ -3676,21 +3666,6 @@ export function BalanceDateDurationRelative(years, months, weeks, days, largestU
     weeks: weeks.toJSNumber(),
     days: days.toJSNumber()
   };
-}
-
-export function CalculateOffsetShift(relativeTo, y, mon, w, d) {
-  if (IsTemporalZonedDateTime(relativeTo)) {
-    const instant = GetSlot(relativeTo, INSTANT);
-    const timeZone = GetSlot(relativeTo, TIME_ZONE);
-    const calendar = GetSlot(relativeTo, CALENDAR);
-    const offsetBefore = GetOffsetNanosecondsFor(timeZone, instant);
-    const after = AddZonedDateTime(instant, timeZone, calendar, y, mon, w, d, 0, 0, 0, 0, 0, 0);
-    const TemporalInstant = GetIntrinsic('%Temporal.Instant%');
-    const instantAfter = new TemporalInstant(after);
-    const offsetAfter = GetOffsetNanosecondsFor(timeZone, instantAfter);
-    return offsetAfter - offsetBefore;
-  }
-  return 0;
 }
 
 export function CreateNegatedTemporalDuration(duration) {
@@ -5219,16 +5194,7 @@ export function AdjustRoundedDurationDays(
   // duration, there's no way for another full day to come from the next
   // round of rounding. And if it were possible (e.g. contrived calendar
   // with 30-minute-long "days") then it'd risk an infinite loop.
-  let timeRemainderNs = TotalDurationNanoseconds(
-    0,
-    hours,
-    minutes,
-    seconds,
-    milliseconds,
-    microseconds,
-    nanoseconds,
-    0
-  );
+  let timeRemainderNs = TotalDurationNanoseconds(0, hours, minutes, seconds, milliseconds, microseconds, nanoseconds);
   const direction = MathSign(timeRemainderNs.toJSNumber());
 
   const timeZone = GetSlot(zonedRelativeTo, TIME_ZONE);
@@ -5347,7 +5313,7 @@ export function RoundDuration(
   // If rounding relative to a ZonedDateTime, then some days may not be 24h.
   let dayLengthNs;
   if (unit === 'year' || unit === 'month' || unit === 'week' || unit === 'day') {
-    nanoseconds = TotalDurationNanoseconds(0, hours, minutes, seconds, milliseconds, microseconds, nanoseconds, 0);
+    nanoseconds = TotalDurationNanoseconds(0, hours, minutes, seconds, milliseconds, microseconds, nanoseconds);
     let deltaDays;
     if (zonedRelativeTo) {
       const intermediate = MoveRelativeZonedDateTime(zonedRelativeTo, years, months, weeks, days);
