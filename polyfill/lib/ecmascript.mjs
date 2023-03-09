@@ -4487,6 +4487,33 @@ export function AddISODate(year, month, day, years, months, weeks, days, overflo
   return { year, month, day };
 }
 
+export function AddDate(calendar, plainDate, duration, options = undefined, dateAdd = undefined) {
+  const years = GetSlot(duration, YEARS);
+  const months = GetSlot(duration, MONTHS);
+  const weeks = GetSlot(duration, WEEKS);
+  if (years !== 0 || months !== 0 || weeks !== 0) {
+    return CalendarDateAdd(calendar, plainDate, duration, options, dateAdd);
+  }
+
+  // Fast path skipping the calendar call if we are only adding days
+  let year = GetSlot(plainDate, ISO_YEAR);
+  let month = GetSlot(plainDate, ISO_MONTH);
+  let day = GetSlot(plainDate, ISO_DAY);
+  const overflow = ToTemporalOverflow(options);
+  const { days } = BalanceTimeDuration(
+    GetSlot(duration, DAYS),
+    GetSlot(duration, HOURS),
+    GetSlot(duration, MINUTES),
+    GetSlot(duration, SECONDS),
+    GetSlot(duration, MILLISECONDS),
+    GetSlot(duration, MICROSECONDS),
+    GetSlot(duration, NANOSECONDS),
+    'day'
+  );
+  ({ year, month, day } = AddISODate(year, month, day, 0, 0, 0, days, overflow));
+  return CreateTemporalDate(year, month, day, calendar);
+}
+
 export function AddTime(
   hour,
   minute,
@@ -4569,8 +4596,8 @@ export function AddDuration(
     const dateDuration1 = new TemporalDuration(y1, mon1, w1, d1, 0, 0, 0, 0, 0, 0);
     const dateDuration2 = new TemporalDuration(y2, mon2, w2, d2, 0, 0, 0, 0, 0, 0);
     const dateAdd = typeof calendar !== 'string' ? GetMethod(calendar, 'dateAdd') : undefined;
-    const intermediate = CalendarDateAdd(calendar, relativeTo, dateDuration1, undefined, dateAdd);
-    const end = CalendarDateAdd(calendar, intermediate, dateDuration2, undefined, dateAdd);
+    const intermediate = AddDate(calendar, relativeTo, dateDuration1, undefined, dateAdd);
+    const end = AddDate(calendar, intermediate, dateDuration2, undefined, dateAdd);
 
     const dateLargestUnit = LargerOfTwoTemporalUnits('day', largestUnit);
     const differenceOptions = ObjectCreate(null);
@@ -4716,7 +4743,7 @@ export function AddDateTime(
   const TemporalDuration = GetIntrinsic('%Temporal.Duration%');
   const datePart = CreateTemporalDate(year, month, day, calendar);
   const dateDuration = new TemporalDuration(years, months, weeks, days, 0, 0, 0, 0, 0, 0);
-  const addedDate = CalendarDateAdd(calendar, datePart, dateDuration, options);
+  const addedDate = AddDate(calendar, datePart, dateDuration, options);
 
   return {
     year: GetSlot(addedDate, ISO_YEAR),
@@ -4997,7 +5024,7 @@ export function AddDurationToOrSubtractDurationFromPlainYearMonth(operation, yea
   }
   const durationToAdd = new Duration(years, months, weeks, days, 0, 0, 0, 0, 0, 0);
   const optionsCopy = SnapshotOwnProperties(GetOptionsObject(options), null);
-  const addedDate = CalendarDateAdd(calendar, startDate, durationToAdd, options, dateAdd);
+  const addedDate = AddDate(calendar, startDate, durationToAdd, options, dateAdd);
   const addedDateFields = PrepareTemporalFields(addedDate, fieldNames, []);
 
   return CalendarYearMonthFromFields(calendar, addedDateFields, optionsCopy);
@@ -5179,7 +5206,7 @@ export function DaysUntil(earlier, later) {
 }
 
 export function MoveRelativeDate(calendar, relativeTo, duration, dateAdd) {
-  const later = CalendarDateAdd(calendar, relativeTo, duration, undefined, dateAdd);
+  const later = AddDate(calendar, relativeTo, duration, undefined, dateAdd);
   const days = DaysUntil(relativeTo, later);
   return { relativeTo: later, days };
 }
@@ -5369,9 +5396,9 @@ export function RoundDuration(
       // relativeTo + years, relativeTo + { years, months, weeks })
       const yearsDuration = new TemporalDuration(years);
       const dateAdd = typeof calendar !== 'string' ? GetMethod(calendar, 'dateAdd') : undefined;
-      const yearsLater = CalendarDateAdd(calendar, plainRelativeTo, yearsDuration, undefined, dateAdd);
+      const yearsLater = AddDate(calendar, plainRelativeTo, yearsDuration, undefined, dateAdd);
       const yearsMonthsWeeks = new TemporalDuration(years, months, weeks);
-      const yearsMonthsWeeksLater = CalendarDateAdd(calendar, plainRelativeTo, yearsMonthsWeeks, undefined, dateAdd);
+      const yearsMonthsWeeksLater = AddDate(calendar, plainRelativeTo, yearsMonthsWeeks, undefined, dateAdd);
       const monthsWeeksInDays = DaysUntil(yearsLater, yearsMonthsWeeksLater);
       plainRelativeTo = yearsLater;
       days += monthsWeeksInDays;
@@ -5426,9 +5453,9 @@ export function RoundDuration(
       //   { years, months }, relativeTo + { years, months, weeks })
       const yearsMonths = new TemporalDuration(years, months);
       const dateAdd = typeof calendar !== 'string' ? GetMethod(calendar, 'dateAdd') : undefined;
-      const yearsMonthsLater = CalendarDateAdd(calendar, plainRelativeTo, yearsMonths, undefined, dateAdd);
+      const yearsMonthsLater = AddDate(calendar, plainRelativeTo, yearsMonths, undefined, dateAdd);
       const yearsMonthsWeeks = new TemporalDuration(years, months, weeks);
-      const yearsMonthsWeeksLater = CalendarDateAdd(calendar, plainRelativeTo, yearsMonthsWeeks, undefined, dateAdd);
+      const yearsMonthsWeeksLater = AddDate(calendar, plainRelativeTo, yearsMonthsWeeks, undefined, dateAdd);
       const weeksInDays = DaysUntil(yearsMonthsLater, yearsMonthsWeeksLater);
       plainRelativeTo = yearsMonthsLater;
       days += weeksInDays;
