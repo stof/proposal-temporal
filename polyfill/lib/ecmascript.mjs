@@ -4981,8 +4981,17 @@ export function AddDurationToOrSubtractDurationFromPlainYearMonth(operation, yea
   if (sign < 0) {
     const oneMonthDuration = new Duration(0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
     const nextMonth = CalendarDateAdd(calendar, startDate, oneMonthDuration, undefined, dateAdd);
-    const minusDayDuration = new Duration(0, 0, 0, -1, 0, 0, 0, 0, 0, 0);
-    const endOfMonth = CalendarDateAdd(calendar, nextMonth, minusDayDuration, undefined, dateAdd);
+    const endOfMonthISO = AddISODate(
+      GetSlot(nextMonth, ISO_YEAR),
+      GetSlot(nextMonth, ISO_MONTH),
+      GetSlot(nextMonth, ISO_DAY),
+      0,
+      0,
+      0,
+      -1,
+      'constrain'
+    );
+    const endOfMonth = CreateTemporalDate(endOfMonthISO.year, endOfMonthISO.month, endOfMonthISO.day, calendar);
     fieldsCopy.day = CalendarDay(calendar, endOfMonth);
     startDate = CalendarDateFromFields(calendar, fieldsCopy);
   }
@@ -5367,8 +5376,17 @@ export function RoundDuration(
       plainRelativeTo = yearsLater;
       days += monthsWeeksInDays;
 
-      const wholeDays = new TemporalDuration(0, 0, 0, days);
-      const wholeDaysLater = CalendarDateAdd(calendar, plainRelativeTo, wholeDays, undefined, dateAdd);
+      const isoResult = AddISODate(
+        GetSlot(plainRelativeTo, ISO_YEAR),
+        GetSlot(plainRelativeTo, ISO_MONTH),
+        GetSlot(plainRelativeTo, ISO_DAY),
+        0,
+        0,
+        0,
+        days,
+        'constrain'
+      );
+      const wholeDaysLater = CreateTemporalDate(isoResult.year, isoResult.month, isoResult.day, calendar);
       const untilOptions = ObjectCreate(null);
       untilOptions.largestUnit = 'year';
       const yearsPassed = GetSlot(CalendarDateUntil(calendar, plainRelativeTo, wholeDaysLater, untilOptions), YEARS);
