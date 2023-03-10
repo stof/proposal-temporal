@@ -2212,8 +2212,9 @@ export function DisambiguatePossibleInstants(possibleInstants, timeZone, dateTim
   if (utcns === null) throw new RangeError('DateTime outside of supported range');
   const dayBefore = new Instant(utcns.minus(86400e9));
   const dayAfter = new Instant(utcns.plus(86400e9));
-  const offsetBefore = GetOffsetNanosecondsFor(timeZone, dayBefore);
-  const offsetAfter = GetOffsetNanosecondsFor(timeZone, dayAfter);
+  const getOffsetNanosecondsFor = GetMethod(timeZone, 'getOffsetNanosecondsFor');
+  const offsetBefore = GetOffsetNanosecondsFor(timeZone, dayBefore, getOffsetNanosecondsFor);
+  const offsetAfter = GetOffsetNanosecondsFor(timeZone, dayAfter, getOffsetNanosecondsFor);
   const nanoseconds = offsetAfter - offsetBefore;
   switch (disambiguation) {
     case 'earlier': {
