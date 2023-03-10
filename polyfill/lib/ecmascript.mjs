@@ -4339,6 +4339,15 @@ export function DifferenceTemporalPlainYearMonth(operation, yearMonth, other, op
   const otherCalendar = GetSlot(other, CALENDAR);
   ThrowIfCalendarsNotEqual(calendar, otherCalendar, 'compute difference between months');
 
+  const Duration = GetIntrinsic('%Temporal.Duration%');
+  if (
+    GetSlot(yearMonth, ISO_YEAR) === GetSlot(other, ISO_YEAR) &&
+    GetSlot(yearMonth, ISO_MONTH) === GetSlot(other, ISO_MONTH) &&
+    GetSlot(yearMonth, ISO_DAY) === GetSlot(other, ISO_DAY)
+  ) {
+    return new Duration();
+  }
+
   const resolvedOptions = SnapshotOwnProperties(GetOptionsObject(options), null);
   const settings = GetDifferenceSettings(operation, resolvedOptions, 'date', ['week', 'day'], 'month', 'year');
   resolvedOptions.largestUnit = settings.largestUnit;
@@ -4372,7 +4381,6 @@ export function DifferenceTemporalPlainYearMonth(operation, yearMonth, other, op
     ));
   }
 
-  const Duration = GetIntrinsic('%Temporal.Duration%');
   return new Duration(sign * years, sign * months, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
