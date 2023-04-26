@@ -502,7 +502,6 @@ export class Duration {
       calendarRec
     ));
     // If the unit we're totalling is smaller than `days`, convert days down to that unit.
-    let balanceResult;
     if (zonedRelativeTo) {
       const intermediate = ES.MoveRelativeZonedDateTime(
         zonedRelativeTo,
@@ -513,7 +512,7 @@ export class Duration {
         weeks,
         0
       );
-      balanceResult = ES.BalancePossiblyInfiniteTimeDurationRelative(
+      ({ days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds } = ES.BalanceTimeDurationRelative(
         days,
         hours,
         minutes,
@@ -524,9 +523,9 @@ export class Duration {
         unit,
         intermediate,
         timeZoneRec
-      );
+      ));
     } else {
-      balanceResult = ES.BalancePossiblyInfiniteTimeDuration(
+      ({ days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds } = ES.BalanceTimeDuration(
         days,
         hours,
         minutes,
@@ -535,14 +534,8 @@ export class Duration {
         microseconds,
         nanoseconds,
         unit
-      );
+      ));
     }
-    if (balanceResult === 'positive overflow') {
-      return Infinity;
-    } else if (balanceResult === 'negative overflow') {
-      return -Infinity;
-    }
-    ({ days, hours, minutes, seconds, milliseconds, microseconds, nanoseconds } = balanceResult);
     // Finally, truncate to the correct unit and calculate remainder
     const { total } = ES.RoundDuration(
       years,
