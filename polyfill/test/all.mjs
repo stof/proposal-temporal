@@ -14,7 +14,7 @@ import './datemath.mjs';
 // tests of internals, not suitable for test262
 import './ecmascript.mjs';
 
-// Internal 96-bit integer implementation, not suitable for test262
+// Internal 96-bit integer as 2×f64 implementation, not suitable for test262
 import './timeduration.mjs';
 
 Promise.resolve()

@@ -17,26 +17,41 @@ function check(timeDuration, sec, subsec) {
 describe('Normalized time duration', () => {
   describe('construction', () => {
     it('basic', () => {
-      check(new TimeDuration(123456789_987654321n), 123456789, 987654321);
-      check(new TimeDuration(-987654321_123456789n), -987654321, -123456789);
+      check(new TimeDuration(123456789, 987654321), 123456789, 987654321);
+      check(new TimeDuration(-987654321, -123456789), -987654321, -123456789);
     });
 
     it('either sign with zero in the other component', () => {
-      check(new TimeDuration(123n), 0, 123);
-      check(new TimeDuration(-123n), 0, -123);
-      check(new TimeDuration(123_000_000_000n), 123, 0);
-      check(new TimeDuration(-123_000_000_000n), -123, 0);
+      check(new TimeDuration(0, 123), 0, 123);
+      check(new TimeDuration(0, -123), 0, -123);
+      check(new TimeDuration(123, 0), 123, 0);
+      check(new TimeDuration(-123, 0), -123, 0);
+    });
+
+    it('-0 is normalized', () => {
+      const d = new TimeDuration(-0, -0);
+      check(d, 0, 0);
+      assert(!Object.is(d.sec, -0));
+      assert(!Object.is(d.subsec, -0));
     });
   });
 
   describe('construction impossible', () => {
     it('out of range', () => {
-      throws(() => new TimeDuration(2n ** 53n * 1_000_000_000n));
-      throws(() => new TimeDuration(-(2n ** 53n * 1_000_000_000n)));
+      throws(() => new TimeDuration(2 ** 53, 0));
+      throws(() => new TimeDuration(-(2 ** 53), 0));
+      throws(() => new TimeDuration(Number.MAX_SAFE_INTEGER, 1e9));
+      throws(() => new TimeDuration(-Number.MAX_SAFE_INTEGER, -1e9));
     });
 
     it('not an integer', () => {
-      throws(() => new TimeDuration(Math.PI));
+      throws(() => new TimeDuration(Math.PI, 0));
+      throws(() => new TimeDuration(0, Math.PI));
+    });
+
+    it('mixed signs', () => {
+      throws(() => new TimeDuration(1, -1));
+      throws(() => new TimeDuration(-1, 1));
     });
   });
 
@@ -89,22 +104,22 @@ describe('Normalized time duration', () => {
 
   describe('cmp()', () => {
     it('equal', () => {
-      const d1 = new TimeDuration(123_000_000_456n);
-      const d2 = new TimeDuration(123_000_000_456n);
+      const d1 = new TimeDuration(123, 456);
+      const d2 = new TimeDuration(123, 456);
       equal(d1.cmp(d2), 0);
       equal(d2.cmp(d1), 0);
     });
 
     it('unqeual', () => {
-      const smaller = new TimeDuration(123_000_000_456n);
-      const larger = new TimeDuration(654_000_000_321n);
+      const smaller = new TimeDuration(123, 456);
+      const larger = new TimeDuration(654, 321);
       equal(smaller.cmp(larger), -1);
       equal(larger.cmp(smaller), 1);
     });
 
     it('cross sign', () => {
-      const neg = new TimeDuration(-654_000_000_321n);
-      const pos = new TimeDuration(123_000_000_456n);
+      const neg = new TimeDuration(-654, -321);
+      const pos = new TimeDuration(123, 456);
       equal(neg.cmp(pos), -1);
       equal(pos.cmp(neg), 1);
     });
@@ -119,7 +134,7 @@ describe('Normalized time duration', () => {
     });
 
     it('quotient smaller than seconds', () => {
-      const d = new TimeDuration(90061_333666999n);
+      const d = new TimeDuration(90061, 333666999);
       const result1 = d.divmod(1000);
       equal(result1.quotient, 90061333666);
       check(result1.remainder, 0, 999);
@@ -135,10 +150,10 @@ describe('Normalized time duration', () => {
   });
 
   it('isZero()', () => {
-    assert(new TimeDuration(0n).isZero());
-    assert(!new TimeDuration(1_000_000_000n).isZero());
-    assert(!new TimeDuration(-1n).isZero());
-    assert(!new TimeDuration(1_000_000_001n).isZero());
+    assert(new TimeDuration(0, 0).isZero());
+    assert(!new TimeDuration(1, 0).isZero());
+    assert(!new TimeDuration(0, -1).isZero());
+    assert(!new TimeDuration(1, 1).isZero());
   });
 
   it('sign()', () => {
@@ -151,15 +166,15 @@ describe('Normalized time duration', () => {
 
   describe('subtract', () => {
     it('basic', () => {
-      const d1 = new TimeDuration(321_987654321n);
-      const d2 = new TimeDuration(123_123456789n);
+      const d1 = new TimeDuration(321, 987654321);
+      const d2 = new TimeDuration(123, 123456789);
       check(d1.subtract(d2), 198, 864197532);
       check(d2.subtract(d1), -198, -864197532);
     });
 
     it('signs differ in result', () => {
-      const d1 = new TimeDuration(3661_001001001n);
-      const d2 = new TimeDuration(86400_000_000_000n);
+      const d1 = new TimeDuration(3661, 1001001);
+      const d2 = new TimeDuration(86400, 0);
       check(d1.subtract(d2), -82738, -998998999);
       check(d2.subtract(d1), 82738, 998998999);
     });

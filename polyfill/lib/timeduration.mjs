@@ -1,45 +1,49 @@
 import bigInt from 'big-integer';
 
 const MathAbs = Math.abs;
+const MathSign = Math.sign;
+const MathTrunc = Math.trunc;
 const NumberIsSafeInteger = Number.isSafeInteger;
 
 export class TimeDuration {
   static MAX = bigInt('9007199254740991999999999');
   static ZERO = new TimeDuration(bigInt.zero);
 
-  constructor(totalNs) {
-    if (typeof totalNs === 'number') throw new Error('assertion failed: big integer required');
-    this.totalNs = bigInt(totalNs);
-    if (this.totalNs.abs().greater(TimeDuration.MAX)) throw new Error('assertion failed: integer too big');
-
-    const { quotient, remainder } = this.totalNs.divmod(1e9);
-    this.sec = quotient.toJSNumber();
-    this.subsec = remainder.toJSNumber();
-    if (!NumberIsSafeInteger(this.sec)) throw new Error('assertion failed: seconds too big');
-    if (MathAbs(this.subsec) > 999_999_999) throw new Error('assertion failed: subseconds too big');
+  constructor(sec, subsec) {
+    if (!NumberIsSafeInteger(sec)) throw new Error('assertion failed: [[Seconds]] is a safe integer');
+    if (!NumberIsSafeInteger(subsec)) throw new Error('assertion failed: [[Subseconds]] is a safe integer');
+    if (MathAbs(subsec) > 999_999_999) throw new Error('assertion failed: |[[Subseconds]]| < 1e9');
+    if (sec && subsec && MathSign(sec) !== MathSign(subsec)) throw new Error('assertion failed: signs equal');
+    this.sec = sec ? sec : 0; // handle -0
+    this.subsec = subsec ? subsec : 0;
   }
 
   static normalize(d, h, min, s, ms, µs, ns) {
-    const totalNs = bigInt(ns)
-      .add(bigInt(µs).multiply(1e3))
-      .add(bigInt(ms).multiply(1e6))
-      .add(bigInt(s).multiply(1e9))
-      .add(bigInt(min).multiply(60e9))
-      .add(bigInt(h).multiply(3600e9))
-      .add(bigInt(d).multiply(86400e9));
-    if (totalNs.abs().greater(TimeDuration.MAX)) {
+    let subsec = (ns % 1e9) + (µs % 1e6) * 1e3 + (ms % 1e3) * 1e6;
+    const sec =
+      d * 86400 +
+      h * 3600 +
+      min * 60 +
+      s +
+      MathTrunc(ms / 1e3) +
+      MathTrunc(µs / 1e6) +
+      MathTrunc(ns / 1e9) +
+      MathTrunc(subsec / 1e9);
+    if (!NumberIsSafeInteger(sec)) {
       throw new RangeError('total of duration time units cannot exceed 9007199254740991.999999999 s');
     }
-    return new TimeDuration(totalNs);
+    subsec %= 1e9;
+    return new TimeDuration(sec, subsec);
   }
 
-  static fromEpochNsDiff(epochNs1, epochNs2) {
-    const diff = epochNs1.subtract(epochNs2);
-    return new TimeDuration(diff);
+  static fromEpochNsDiff(bigNs1, bigNs2) {
+    const diff = bigNs1.subtract(bigNs2);
+    const { quotient, remainder } = diff.divmod(1e9);
+    return new TimeDuration(quotient.toJSNumber(), remainder.toJSNumber());
   }
 
   abs() {
-    return new TimeDuration(this.totalNs.abs());
+    return new TimeDuration(MathAbs(this.sec), MathAbs(this.subsec));
   }
 
   add(other) {
@@ -51,11 +55,15 @@ export class TimeDuration {
   }
 
   addToEpochNs(epochNs) {
-    return epochNs.add(this.totalNs);
+    return epochNs.add(this.subsec).add(bigInt(this.sec).multiply(1e9));
   }
 
   cmp(other) {
-    return this.totalNs.compare(other.totalNs);
+    if (this.sec > other.sec) return 1;
+    if (this.sec < other.sec) return -1;
+    if (this.subsec > other.subsec) return 1;
+    if (this.subsec < other.subsec) return -1;
+    return 0;
   }
 
   div(n) {
@@ -64,15 +72,20 @@ export class TimeDuration {
   }
 
   divmod(n) {
-    const { quotient, remainder } = this.totalNs.divmod(n);
-    const q = quotient.toJSNumber();
-    if (!NumberIsSafeInteger(q)) throw new Error('assertion failed: quotient too big');
-    const r = new TimeDuration(remainder);
-    return { quotient: q, remainder: r };
+    const subsecRemainder = this.subsec % n;
+    // FIXME: 90061333666999 % 3 === 1, while 333666999 %3 === 0
+    const subsecQuotient = MathTrunc(this.subsec / n);
+    const secDivisor = n / 1e9;
+    const secRemainder = MathTrunc(this.sec % secDivisor);
+    const secQuotient = MathTrunc(this.sec / secDivisor);
+    return {
+      quotient: secQuotient + subsecQuotient,
+      remainder: new TimeDuration(secRemainder, subsecRemainder)
+    };
   }
 
   isZero() {
-    return this.totalNs.isZero();
+    return this.sec === 0 && this.subsec === 0;
   }
 
   round(increment, mode) {
@@ -123,14 +136,20 @@ export class TimeDuration {
   }
 
   sign() {
-    return this.cmp(new TimeDuration(0n));
+    if (this.sec === 0) return MathSign(this.subsec);
+    return MathSign(this.sec);
   }
 
   subtract(other) {
-    const newTotal = this.totalNs.subtract(other.totalNs);
-    if (newTotal.abs().greater(TimeDuration.MAX)) {
-      throw new RangeError('difference of duration time units cannot exceed 9007199254740991.999999999 s');
+    let sec = this.sec - other.sec;
+    let subsec = this.subsec - other.subsec;
+    sec += MathTrunc(subsec / 1e9);
+    subsec %= 1e9;
+    if (sec && subsec && MathSign(sec) !== MathSign(subsec)) {
+      const sign = MathSign(sec);
+      sec -= sign;
+      subsec += sign * 1e9;
     }
-    return new TimeDuration(newTotal);
+    return new TimeDuration(sec, subsec);
   }
 }
