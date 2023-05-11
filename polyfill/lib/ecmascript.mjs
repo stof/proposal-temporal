@@ -3443,130 +3443,63 @@ export function UnbalanceDateDurationRelative(years, months, weeks, days, larges
   // * largestUnit week and (years !== 0 or months !== 0): dateAdd
   // * largestUnit day or smaller, and (years, months, or weeks !== 0): dateAdd
   const TemporalDuration = GetIntrinsic('%Temporal.Duration%');
-  const sign = DurationSign(years, months, weeks, days, 0, 0, 0, 0, 0, 0);
-  if (sign === 0) return { years, months, weeks, days };
-
-  const oneYear = new TemporalDuration(sign);
-  const oneMonth = new TemporalDuration(0, sign);
-  const oneWeek = new TemporalDuration(0, 0, sign);
-
-  // Perform arithmetic in the mathematical integer domain
-  years = bigInt(years);
-  months = bigInt(months);
-  weeks = bigInt(weeks);
-  days = bigInt(days);
 
   switch (largestUnit) {
     case 'year':
       // no-op
-      break;
-    case 'month':
-      {
-        if (years.isZero()) break;
-        if (!calendarRec) throw new RangeError('a starting point is required for months balancing');
-        // balance years down to months
-        while (!years.isZero()) {
-          const newRelativeTo = CalendarDateAdd(
-            calendarRec.receiver,
-            plainRelativeTo,
-            oneYear,
-            undefined,
-            calendarRec.dateAdd
-          );
-          const untilOptions = ObjectCreate(null);
-          untilOptions.largestUnit = 'month';
-          const untilResult = CalendarDateUntil(
-            calendarRec.receiver,
-            plainRelativeTo,
-            newRelativeTo,
-            untilOptions,
-            calendarRec.dateUntil
-          );
-          const oneYearMonths = GetSlot(untilResult, MONTHS);
-          plainRelativeTo = newRelativeTo;
-          months = months.add(oneYearMonths);
-          years = years.subtract(sign);
-        }
-      }
-      break;
-    case 'week':
-      {
-        if (years.isZero() && months.isZero()) break;
-        if (!calendarRec) throw new RangeError('a starting point is required for weeks balancing');
-        // balance years down to days
-        while (!years.isZero()) {
-          let oneYearDays;
-          ({ relativeTo: plainRelativeTo, days: oneYearDays } = MoveRelativeDate(
-            calendarRec,
-            plainRelativeTo,
-            oneYear
-          ));
-          days = days.add(oneYearDays);
-          years = years.subtract(sign);
-        }
-
-        // balance months down to days
-        while (!months.isZero()) {
-          let oneMonthDays;
-          ({ relativeTo: plainRelativeTo, days: oneMonthDays } = MoveRelativeDate(
-            calendarRec,
-            plainRelativeTo,
-            oneMonth
-          ));
-          days = days.add(oneMonthDays);
-          months = months.subtract(sign);
-        }
-      }
-      break;
-    default:
-      {
-        if (years.isZero() && months.isZero() && weeks.isZero()) break;
-        if (!calendarRec) throw new RangeError('a starting point is required for balancing calendar units');
-        // balance years down to days
-        while (!years.isZero()) {
-          let oneYearDays;
-          ({ relativeTo: plainRelativeTo, days: oneYearDays } = MoveRelativeDate(
-            calendarRec,
-            plainRelativeTo,
-            oneYear
-          ));
-          days = days.add(oneYearDays);
-          years = years.subtract(sign);
-        }
-
-        // balance months down to days
-        while (!months.isZero()) {
-          let oneMonthDays;
-          ({ relativeTo: plainRelativeTo, days: oneMonthDays } = MoveRelativeDate(
-            calendarRec,
-            plainRelativeTo,
-            oneMonth
-          ));
-          days = days.add(oneMonthDays);
-          months = months.subtract(sign);
-        }
-
-        // balance weeks down to days
-        while (!weeks.isZero()) {
-          let oneWeekDays;
-          ({ relativeTo: plainRelativeTo, days: oneWeekDays } = MoveRelativeDate(
-            calendarRec,
-            plainRelativeTo,
-            oneWeek
-          ));
-          days = days.add(oneWeekDays);
-          weeks = weeks.subtract(sign);
-        }
-      }
-      break;
+      return { years, months, weeks, days };
+    case 'month': {
+      if (years === 0) return { years: 0, months, weeks, days };
+      if (!calendarRec) throw new RangeError('a starting point is required for months balancing');
+      // balance years down to months
+      const later = CalendarDateAdd(
+        calendarRec.receiver,
+        plainRelativeTo,
+        new TemporalDuration(years),
+        undefined,
+        calendarRec.dateAdd
+      );
+      const untilOptions = ObjectCreate(null);
+      untilOptions.largestUnit = 'month';
+      const untilResult = CalendarDateUntil(
+        calendarRec.receiver,
+        plainRelativeTo,
+        later,
+        untilOptions,
+        calendarRec.dateUntil
+      );
+      const yearsInMonths = GetSlot(untilResult, MONTHS);
+      return { years: 0, months: months + yearsInMonths, weeks, days };
+    }
+    case 'week': {
+      if (years === 0 && months === 0) return { years: 0, months: 0, weeks, days };
+      if (!calendarRec) throw new RangeError('a starting point is required for weeks balancing');
+      // balance years and months down to days
+      const later = CalendarDateAdd(
+        calendarRec.receiver,
+        plainRelativeTo,
+        new TemporalDuration(years, months),
+        undefined,
+        calendarRec.dateAdd
+      );
+      const yearsMonthsInDays = DaysUntil(plainRelativeTo, later);
+      return { years: 0, months: 0, weeks, days: days + yearsMonthsInDays };
+    }
+    default: {
+      if (years === 0 && months === 0 && weeks === 0) return { years: 0, months: 0, weeks: 0, days };
+      if (!calendarRec) throw new RangeError('a starting point is required for balancing calendar units');
+      // balance years, months, and weeks down to days
+      const later = CalendarDateAdd(
+        calendarRec.receiver,
+        plainRelativeTo,
+        new TemporalDuration(years, months, weeks),
+        undefined,
+        calendarRec.dateAdd
+      );
+      const yearsMonthsWeeksInDays = DaysUntil(plainRelativeTo, later);
+      return { years: 0, months: 0, weeks: 0, days: days + yearsMonthsWeeksInDays };
+    }
   }
-
-  return {
-    years: years.toJSNumber(),
-    months: months.toJSNumber(),
-    weeks: weeks.toJSNumber(),
-    days: days.toJSNumber()
-  };
 }
 
 export function BalanceDateDurationRelative(years, months, weeks, days, largestUnit, plainRelativeTo, calendarRec) {
