@@ -332,16 +332,14 @@ export class Duration {
         years !== 0 ||
         months !== 0 ||
         weeks !== 0 ||
-        largestUnit === 'year' ||
-        largestUnit === 'month' ||
-        largestUnit === 'week' ||
+        (days !== 0 && (largestUnit === 'year' || largestUnit === 'month' || largestUnit === 'week')) ||
         smallestUnit === 'year' ||
         smallestUnit === 'month' ||
         smallestUnit === 'week'
       ) {
         calendarRec.lookup('dateAdd');
       }
-      if (largestUnit === 'year' || (largestUnit === 'month' && years !== 0) || smallestUnit === 'year') {
+      if (largestUnit === 'year' || largestUnit === 'month' || largestUnit === 'week' || smallestUnit === 'year') {
         calendarRec.lookup('dateUntil');
       }
     }

@@ -3503,113 +3503,85 @@ export function UnbalanceDateDurationRelative(years, months, weeks, days, larges
 }
 
 export function BalanceDateDurationRelative(years, months, weeks, days, largestUnit, plainRelativeTo, calendarRec) {
-  // dateAdd, dateUntil must be looked up if units are not 0 and largestUnit == year
-  // dateAdd must be looked up if units are not 0 and largestUnit == month or weeks
+  // calendarRec must have looked up:
+  //  - if largestUnit == year:
+  //    - if years or months nonzero, dateAdd and dateUntil
+  //    - if weeks or days nonzero, dateUntil
+  //  - if largestUnit == month:
+  //    - if months nonzero, dateAdd and dateUntil
+  //    - if weeks or days nonzero, dateUntil
+  //  - if largestUnit == week:
+  //    - if weeks nonzero, dateAdd and dateUntil
+  //    - if days nonzero, dateUntil
   const TemporalDuration = GetIntrinsic('%Temporal.Duration%');
-  const sign = DurationSign(years, months, weeks, days, 0, 0, 0, 0, 0, 0);
-  if (sign === 0 || (largestUnit !== 'year' && largestUnit !== 'month' && largestUnit !== 'week')) {
+
+  if (
+    (years === 0 && months === 0 && weeks === 0 && days === 0) ||
+    (largestUnit !== 'year' && largestUnit !== 'month' && largestUnit !== 'week')
+  ) {
     return { years, months, weeks, days };
   }
 
   if (!plainRelativeTo) throw new RangeError(`a starting point is required for ${largestUnit}s balancing`);
 
-  const oneYear = new TemporalDuration(sign);
-  const oneMonth = new TemporalDuration(0, sign);
-  const oneWeek = new TemporalDuration(0, 0, sign);
-
-  // Perform arithmetic in the mathematical integer domain
-  years = bigInt(years);
-  months = bigInt(months);
-  weeks = bigInt(weeks);
-  days = bigInt(days);
+  const untilOptions = ObjectCreate(null);
+  untilOptions.largestUnit = largestUnit;
 
   switch (largestUnit) {
     case 'year': {
-      // balance days up to years
-      let newRelativeTo, oneYearDays;
-      ({ relativeTo: newRelativeTo, days: oneYearDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneYear));
-      while (days.abs().geq(MathAbs(oneYearDays))) {
-        days = days.subtract(oneYearDays);
-        years = years.add(sign);
-        plainRelativeTo = newRelativeTo;
-        ({ relativeTo: newRelativeTo, days: oneYearDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneYear));
-      }
-
-      // balance days up to months
-      let oneMonthDays;
-      ({ relativeTo: newRelativeTo, days: oneMonthDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneMonth));
-      while (days.abs().geq(MathAbs(oneMonthDays))) {
-        days = days.subtract(oneMonthDays);
-        months = months.add(sign);
-        plainRelativeTo = newRelativeTo;
-        ({ relativeTo: newRelativeTo, days: oneMonthDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneMonth));
-      }
-
-      // balance months up to years
-      newRelativeTo = CalendarDateAdd(calendarRec.receiver, plainRelativeTo, oneYear, undefined, calendarRec.dateAdd);
-      const untilOptions = ObjectCreate(null);
-      untilOptions.largestUnit = 'month';
-      let untilResult = CalendarDateUntil(
+      // balance months and days up to years
+      const later = AddDate(calendarRec, plainRelativeTo, new TemporalDuration(years, months, 0, days));
+      const untilResult = CalendarDateUntil(
         calendarRec.receiver,
         plainRelativeTo,
-        newRelativeTo,
+        later,
         untilOptions,
         calendarRec.dateUntil
       );
-      let oneYearMonths = GetSlot(untilResult, MONTHS);
-      while (months.abs().geq(MathAbs(oneYearMonths))) {
-        months = months.subtract(oneYearMonths);
-        years = years.add(sign);
-        plainRelativeTo = newRelativeTo;
-        newRelativeTo = CalendarDateAdd(calendarRec.receiver, plainRelativeTo, oneYear, undefined, calendarRec.dateAdd);
-        const untilOptions = ObjectCreate(null);
-        untilOptions.largestUnit = 'month';
-        untilResult = CalendarDateUntil(
-          calendarRec.receiver,
-          plainRelativeTo,
-          newRelativeTo,
-          untilOptions,
-          calendarRec.dateUntil
-        );
-        oneYearMonths = GetSlot(untilResult, MONTHS);
-      }
-      break;
+      return {
+        years: GetSlot(untilResult, YEARS),
+        months: GetSlot(untilResult, MONTHS),
+        weeks,
+        days: GetSlot(untilResult, DAYS)
+      };
     }
     case 'month': {
       // balance days up to months
-      let newRelativeTo, oneMonthDays;
-      ({ relativeTo: newRelativeTo, days: oneMonthDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneMonth));
-      while (days.abs().geq(MathAbs(oneMonthDays))) {
-        days = days.subtract(oneMonthDays);
-        months = months.add(sign);
-        plainRelativeTo = newRelativeTo;
-        ({ relativeTo: newRelativeTo, days: oneMonthDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneMonth));
-      }
-      break;
+      const later = AddDate(calendarRec, plainRelativeTo, new TemporalDuration(0, months, 0, days));
+      const untilResult = CalendarDateUntil(
+        calendarRec.receiver,
+        plainRelativeTo,
+        later,
+        untilOptions,
+        calendarRec.dateUntil
+      );
+      return {
+        years: 0,
+        months: GetSlot(untilResult, MONTHS),
+        weeks,
+        days: GetSlot(untilResult, DAYS)
+      };
     }
     case 'week': {
       // balance days up to weeks
-      let newRelativeTo, oneWeekDays;
-      ({ relativeTo: newRelativeTo, days: oneWeekDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneWeek));
-      while (days.abs().geq(MathAbs(oneWeekDays))) {
-        days = days.subtract(oneWeekDays);
-        weeks = weeks.add(sign);
-        plainRelativeTo = newRelativeTo;
-        ({ relativeTo: newRelativeTo, days: oneWeekDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneWeek));
-      }
-      break;
+      const later = AddDate(calendarRec, plainRelativeTo, new TemporalDuration(0, 0, weeks, days));
+      const untilResult = CalendarDateUntil(
+        calendarRec.receiver,
+        plainRelativeTo,
+        later,
+        untilOptions,
+        calendarRec.dateUntil
+      );
+      return {
+        years: 0,
+        months: 0,
+        weeks: GetSlot(untilResult, WEEKS),
+        days: GetSlot(untilResult, DAYS)
+      };
     }
     default:
-      // no-op
-      break;
+    // not reached
   }
-
-  return {
-    years: years.toJSNumber(),
-    months: months.toJSNumber(),
-    weeks: weeks.toJSNumber(),
-    days: days.toJSNumber()
-  };
 }
 
 export function CreateNegatedTemporalDuration(duration) {
