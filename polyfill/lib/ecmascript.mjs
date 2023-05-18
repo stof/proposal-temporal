@@ -4143,7 +4143,9 @@ export function DifferenceTemporalPlainDate(operation, plainDate, other, options
     settings.largestUnit === 'year' ||
     settings.largestUnit === 'month' ||
     settings.largestUnit === 'week' ||
-    settings.smallestUnit === 'year'
+    settings.smallestUnit === 'year' ||
+    settings.smallestUnit === 'month' ||
+    settings.smallestUnit === 'week'
   ) {
     calendarRec.lookup('dateUntil');
   }
@@ -4211,7 +4213,9 @@ export function DifferenceTemporalPlainDateTime(operation, plainDateTime, other,
   if (
     (!datePartsIdentical &&
       (settings.largestUnit === 'year' || settings.largestUnit === 'month' || settings.largestUnit === 'week')) ||
-    settings.smallestUnit === 'year'
+    settings.smallestUnit === 'year' ||
+    settings.smallestUnit === 'month' ||
+    settings.smallestUnit === 'week'
   ) {
     calendarRec.lookup('dateUntil');
   }
@@ -5498,8 +5502,11 @@ export function RoundDuration(
   zonedRelativeTo = undefined,
   timeZoneRec = undefined
 ) {
-  // dateAdd, dateUntil must be looked up if smallestUnit == year
-  // dateAdd must be looked up if smallestUnit == month or week
+  // calendarRec must have looked up:
+  // dateAdd, if
+  //  smallestUnit == year, month, week or
+  //  (smallestUnit == day && any of years, months, weeks days ≠ 0 && zonedRelativeTo defined)
+  // dateUntil, if smallestUnit == year, month, week && any of years, months, weeks ≠ 0
   const TemporalDuration = GetIntrinsic('%Temporal.Duration%');
 
   if ((unit === 'year' || unit === 'month' || unit === 'week') && !plainRelativeTo) {
@@ -5598,21 +5605,32 @@ export function RoundDuration(
       plainRelativeTo = yearsMonthsLater;
       days += weeksInDays;
 
-      // Months may be different lengths of days depending on the calendar,
-      // convert days to months in a loop as described above under 'years'.
-      const sign = MathSign(days);
+      const isoResult = AddISODate(
+        GetSlot(plainRelativeTo, ISO_YEAR),
+        GetSlot(plainRelativeTo, ISO_MONTH),
+        GetSlot(plainRelativeTo, ISO_DAY),
+        0,
+        0,
+        0,
+        days,
+        'constrain'
+      );
+      const wholeDaysLater = CreateTemporalDate(isoResult.year, isoResult.month, isoResult.day, calendarRec.receiver);
+      const untilOptions = ObjectCreate(null);
+      untilOptions.largestUnit = 'month';
+      const monthsPassed = GetSlot(DifferenceDate(calendarRec, plainRelativeTo, wholeDaysLater, untilOptions), MONTHS);
+      months += monthsPassed;
+      const monthsPassedDuration = new TemporalDuration(0, monthsPassed);
+      let daysPassed;
+      ({ relativeTo: plainRelativeTo, days: daysPassed } = MoveRelativeDate(
+        calendarRec,
+        plainRelativeTo,
+        monthsPassedDuration
+      ));
+      days -= daysPassed;
       const oneMonth = new TemporalDuration(0, days < 0 ? -1 : 1);
-      let oneMonthDays;
-      ({ relativeTo: plainRelativeTo, days: oneMonthDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneMonth));
-      while (MathAbs(days) >= MathAbs(oneMonthDays)) {
-        months += sign;
-        days -= oneMonthDays;
-        ({ relativeTo: plainRelativeTo, days: oneMonthDays } = MoveRelativeDate(
-          calendarRec,
-          plainRelativeTo,
-          oneMonth
-        ));
-      }
+      let { days: oneMonthDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneMonth);
+
       oneMonthDays = MathAbs(oneMonthDays);
       const divisor = bigInt(oneMonthDays).multiply(dayLengthNs);
       nanoseconds = divisor.multiply(months).plus(bigInt(days).multiply(dayLengthNs)).plus(nanoseconds);
@@ -5624,17 +5642,32 @@ export function RoundDuration(
       break;
     }
     case 'week': {
-      // Weeks may be different lengths of days depending on the calendar,
-      // convert days to weeks in a loop as described above under 'years'.
-      const sign = MathSign(days);
+      const isoResult = AddISODate(
+        GetSlot(plainRelativeTo, ISO_YEAR),
+        GetSlot(plainRelativeTo, ISO_MONTH),
+        GetSlot(plainRelativeTo, ISO_DAY),
+        0,
+        0,
+        0,
+        days,
+        'constrain'
+      );
+      const wholeDaysLater = CreateTemporalDate(isoResult.year, isoResult.month, isoResult.day, calendarRec.receiver);
+      const untilOptions = ObjectCreate(null);
+      untilOptions.largestUnit = 'week';
+      const weeksPassed = GetSlot(DifferenceDate(calendarRec, plainRelativeTo, wholeDaysLater, untilOptions), WEEKS);
+      weeks += weeksPassed;
+      const weeksPassedDuration = new TemporalDuration(0, 0, weeksPassed);
+      let daysPassed;
+      ({ relativeTo: plainRelativeTo, days: daysPassed } = MoveRelativeDate(
+        calendarRec,
+        plainRelativeTo,
+        weeksPassedDuration
+      ));
+      days -= daysPassed;
       const oneWeek = new TemporalDuration(0, 0, days < 0 ? -1 : 1);
-      let oneWeekDays;
-      ({ relativeTo: plainRelativeTo, days: oneWeekDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneWeek));
-      while (MathAbs(days) >= MathAbs(oneWeekDays)) {
-        weeks += sign;
-        days -= oneWeekDays;
-        ({ relativeTo: plainRelativeTo, days: oneWeekDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneWeek));
-      }
+      let { days: oneWeekDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneWeek);
+
       oneWeekDays = MathAbs(oneWeekDays);
       const divisor = bigInt(oneWeekDays).multiply(dayLengthNs);
       nanoseconds = divisor.multiply(weeks).plus(bigInt(days).multiply(dayLengthNs)).plus(nanoseconds);

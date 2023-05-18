@@ -339,7 +339,14 @@ export class Duration {
       ) {
         calendarRec.lookup('dateAdd');
       }
-      if (largestUnit === 'year' || largestUnit === 'month' || largestUnit === 'week' || smallestUnit === 'year') {
+      if (
+        largestUnit === 'year' ||
+        largestUnit === 'month' ||
+        largestUnit === 'week' ||
+        smallestUnit === 'year' ||
+        smallestUnit === 'month' ||
+        smallestUnit === 'week'
+      ) {
         calendarRec.lookup('dateUntil');
       }
     }
@@ -479,7 +486,7 @@ export class Duration {
       if (years !== 0 || months !== 0 || weeks !== 0 || unit === 'year' || unit === 'month' || unit === 'week') {
         calendarRec.lookup('dateAdd');
       }
-      if (unit === 'year' || (unit === 'month' && years !== 0)) {
+      if (unit === 'year' || unit === 'month' || unit === 'week') {
         calendarRec.lookup('dateUntil');
       }
     }
