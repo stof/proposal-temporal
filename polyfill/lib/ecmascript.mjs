@@ -3546,6 +3546,9 @@ export function RejectDuration(y, mon, w, d, h, min, s, ms, µs, ns) {
     const propSign = MathSign(prop);
     if (propSign !== 0 && propSign !== sign) throw new RangeError('mixed-sign values not allowed as duration fields');
   }
+  if (MathAbs(y) >= 2 ** 32 || MathAbs(mon) >= 2 ** 32 || MathAbs(w) >= 2 ** 32) {
+    throw new RangeError('years, months, and weeks must be < 2³²');
+  }
   if (!NumberIsSafeInteger(d * 86400 + h * 3600 + min * 60 + s + MathTrunc(ms / 1e3 + µs / 1e6 + ns / 1e9))) {
     throw new RangeError('total of duration time units cannot exceed 9007199254740991.999999999 s');
   }
@@ -4911,6 +4914,49 @@ export function RoundNumberToIncrement(quantity, increment, mode) {
   return quotient.multiply(increment);
 }
 
+export function RoundJSNumberToIncrement(quantity, increment, mode) {
+  let quotient = MathTrunc(quantity / increment);
+  const remainder = quantity % increment;
+  if (remainder === 0) return quantity;
+  const sign = remainder < 0 ? -1 : 1;
+  const tiebreaker = MathAbs(remainder * 2);
+  const tie = tiebreaker === increment;
+  const expandIsNearer = tiebreaker > increment;
+  switch (mode) {
+    case 'ceil':
+      if (sign > 0) quotient += sign;
+      break;
+    case 'floor':
+      if (sign < 0) quotient += sign;
+      break;
+    case 'expand':
+      // always expand if there is a remainder
+      quotient += sign;
+      break;
+    case 'trunc':
+      // no change needed, because divmod is a truncation
+      break;
+    case 'halfCeil':
+      if (expandIsNearer || (tie && sign > 0)) quotient += sign;
+      break;
+    case 'halfFloor':
+      if (expandIsNearer || (tie && sign < 0)) quotient += sign;
+      break;
+    case 'halfExpand':
+      // "half up away from zero"
+      if (expandIsNearer || tie) quotient += sign;
+      break;
+    case 'halfTrunc':
+      if (expandIsNearer) quotient += sign;
+      break;
+    case 'halfEven': {
+      if (expandIsNearer || (tie && quotient % 2 === 1)) quotient += sign;
+      break;
+    }
+  }
+  return quotient * increment;
+}
+
 export function RoundInstant(epochNs, increment, unit, roundingMode) {
   let { remainder } = NonNegativeBigIntDivmod(epochNs, 86400e9);
   const wholeDays = epochNs.minus(remainder);
@@ -5212,19 +5258,9 @@ export function RoundDuration(
       const oneYear = new TemporalDuration(days < 0 ? -1 : 1);
       let { days: oneYearDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneYear);
 
-      // Note that `nanoseconds` below (here and in similar code for months,
-      // weeks, and days further below) isn't actually nanoseconds for the
-      // full date range.  Instead, it's a BigInt representation of total
-      // days multiplied by the number of nanoseconds in the last day of
-      // the duration. This lets us do days-or-larger rounding using BigInt
-      // math which reduces precision loss.
       oneYearDays = MathAbs(oneYearDays);
-      const divisor = bigInt(oneYearDays).multiply(dayLengthNs);
-      const nanoseconds = divisor.multiply(years).plus(bigInt(days).multiply(dayLengthNs)).plus(norm.totalNs);
-      const rounded = RoundNumberToIncrement(nanoseconds, divisor.multiply(increment).toJSNumber(), roundingMode);
-      const { quotient, remainder } = nanoseconds.divmod(divisor);
-      total = quotient.toJSNumber() + remainder.toJSNumber() / divisor;
-      years = rounded.divide(divisor).toJSNumber();
+      total = years + days / oneYearDays + norm.div(oneYearDays * dayLengthNs);
+      years = RoundJSNumberToIncrement(total, increment, roundingMode);
       months = weeks = days = 0;
       norm = TimeDuration.ZERO;
       break;
@@ -5267,12 +5303,8 @@ export function RoundDuration(
       let { days: oneMonthDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneMonth);
 
       oneMonthDays = MathAbs(oneMonthDays);
-      const divisor = bigInt(oneMonthDays).multiply(dayLengthNs);
-      const nanoseconds = divisor.multiply(months).plus(bigInt(days).multiply(dayLengthNs)).plus(norm.totalNs);
-      const rounded = RoundNumberToIncrement(nanoseconds, divisor.multiply(increment), roundingMode);
-      const { quotient, remainder } = nanoseconds.divmod(divisor);
-      total = quotient.toJSNumber() + remainder.toJSNumber() / divisor;
-      months = rounded.divide(divisor).toJSNumber();
+      total = months + days / oneMonthDays + norm.div(oneMonthDays * dayLengthNs);
+      months = RoundJSNumberToIncrement(total, increment, roundingMode);
       weeks = days = 0;
       norm = TimeDuration.ZERO;
       break;
@@ -5305,23 +5337,15 @@ export function RoundDuration(
       let { days: oneWeekDays } = MoveRelativeDate(calendarRec, plainRelativeTo, oneWeek);
 
       oneWeekDays = MathAbs(oneWeekDays);
-      const divisor = bigInt(oneWeekDays).multiply(dayLengthNs);
-      const nanoseconds = divisor.multiply(weeks).plus(bigInt(days).multiply(dayLengthNs)).plus(norm.totalNs);
-      const rounded = RoundNumberToIncrement(nanoseconds, divisor.multiply(increment), roundingMode);
-      const { quotient, remainder } = nanoseconds.divmod(divisor);
-      total = quotient.toJSNumber() + remainder.toJSNumber() / divisor;
-      weeks = rounded.divide(divisor).toJSNumber();
+      total = weeks + days / oneWeekDays + norm.div(oneWeekDays * dayLengthNs);
+      weeks = RoundJSNumberToIncrement(total, increment, roundingMode);
       days = 0;
       norm = TimeDuration.ZERO;
       break;
     }
     case 'day': {
-      const divisor = bigInt(dayLengthNs);
-      const nanoseconds = divisor.multiply(days).plus(norm.totalNs);
-      const rounded = RoundNumberToIncrement(nanoseconds, divisor.multiply(increment), roundingMode);
-      const { quotient, remainder } = nanoseconds.divmod(divisor);
-      total = quotient.toJSNumber() + remainder.toJSNumber() / divisor;
-      days = rounded.divide(divisor).toJSNumber();
+      total = days + norm.div(dayLengthNs);
+      days = RoundJSNumberToIncrement(total, increment, roundingMode);
       norm = TimeDuration.ZERO;
       break;
     }
